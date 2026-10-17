@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cine para dos</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  body { background:#111; color:#eee; font-family:sans-serif; text-align:center; margin:0; padding:20px; }
+  video { width:100%; max-width:900px; background:#000; border-radius:8px; }
+  button, input { padding:10px; margin:5px; border-radius:6px; border:none; font-size:16px; }
+  button { background:#e50914; color:#fff; cursor:pointer; }
+  #estado { margin:10px; color:#aaa; }
+</style>
+</head>
+<body>
+  <h1>🎬 Cine para dos</h1>
+
+  <div>
+    <button id="crear">Crear sala</button>
+    <input id="codigo" placeholder="Código de sala">
+    <button id="unirme">Unirme</button>
+  </div>
+  <div id="estado">Sin conexión</div>
+
+  <input type="file" id="archivo" accept="video/*"><br><br>
+  <video id="video" controls></video>
+
+<script>
+  const PREFIJO = 'cine-para-dos-';
+  const video = document.getElementById('video');
+  const estado = document.getElementById('estado');
+  let peer, conn;
+  let ignorar = false;
+
+  // Cargar el video desde tu propio equipo
+  document.getElementById('archivo').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) video.src = URL.createObjectURL(f);
+  });
+
+  function enviar(msg) {
+    if (conn && conn.open) conn.send(msg);
+  }
+
+  function configurarConexion(c) {
+    conn = c;
+    c.on('open', () => estado.textContent = '✅ Conectados');
+    c.on('close', () => estado.textContent = 'Conexión cerrada');
+    c.on('data', recibir);
+  }
+
+  // Lo que llega desde el otro lado
+  function recibir(msg) {
+    ignorar = true;
+    if (Math.abs(video.currentTime - msg.tiempo) > 0.5) video.currentTime = msg.tiempo;
+    if (msg.tipo === 'play') video.play();
+    if (msg.tipo === 'pause') video.pause();
+    setTimeout(() => ignorar = false, 400);
+  }
+
+  // Lo que haces tú
+  video.addEventListener('play',   () => { if (!ignorar) enviar({ tipo:'play',  tiempo: video.currentTime }); });
+  video.addEventListener('pause',  () => { if (!ignorar) enviar({ tipo:'pause', tiempo: video.currentTime }); });
+  video.addEventListener('seeked', () => { if (!ignorar) enviar({ tipo:'seek',  tiempo: video.currentTime }); });
+
+  // Crear sala
+  document.getElementById('crear').onclick = () => {
+    const codigo = Math.random().toString(36).slice(2, 8);
+    peer = new Peer(PREFIJO + codigo);
+    peer.on('open', () => estado.textContent = 'Tu código de sala: ' + codigo + ' (pásaselo a tu novia)');
+    peer.on('connection', configurarConexion);
+  };
+
+  // Unirse a una sala
+  document.getElementById('unirme').onclick = () => {
+    const codigo = document.getElementById('codigo').value.trim();
+    peer = new Peer();
+    peer.on('open', () => {
+      estado.textContent = 'Conectando...';
+      configurarConexion(peer.connect(PREFIJO + codigo));
+    });
+  };
+</script>
+</body>
+</html>
