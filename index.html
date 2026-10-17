@@ -8,32 +8,26 @@
 <style>
   body { background:#111; color:#eee; font-family:sans-serif; text-align:center; margin:0; padding:20px; }
   video { width:100%; max-width:900px; background:#000; border-radius:8px; }
-  button, input { padding:10px; margin:5px; border-radius:6px; border:none; font-size:16px; }
-  button { background:#e50914; color:#fff; cursor:pointer; }
+  input { padding:10px; margin:5px; font-size:16px; }
   #estado { margin:10px; color:#aaa; }
 </style>
 </head>
 <body>
   <h1>🎬 Cine para dos</h1>
-
-  <div>
-    <button id="crear">Crear sala</button>
-    <input id="codigo" placeholder="Código de sala">
-    <button id="unirme">Unirme</button>
-  </div>
-  <div id="estado">Sin conexión</div>
+  <div id="estado">Conectando...</div>
 
   <input type="file" id="archivo" accept="video/*"><br><br>
   <video id="video" controls></video>
 
 <script>
-  const PREFIJO = 'cine-para-dos-';
+  // CAMBIA ESTO por algo que solo ustedes dos sepan (letras y números, sin espacios)
+  const SALA = 'cine-para-dos-cambiame-por-algo-secreto-123';
+
   const video = document.getElementById('video');
   const estado = document.getElementById('estado');
   let peer, conn;
   let ignorar = false;
 
-  // Cargar el video desde tu propio equipo
   document.getElementById('archivo').addEventListener('change', e => {
     const f = e.target.files[0];
     if (f) video.src = URL.createObjectURL(f);
@@ -46,11 +40,10 @@
   function configurarConexion(c) {
     conn = c;
     c.on('open', () => estado.textContent = '✅ Conectados');
-    c.on('close', () => estado.textContent = 'Conexión cerrada');
+    c.on('close', () => estado.textContent = 'Se desconectó, recarga la página');
     c.on('data', recibir);
   }
 
-  // Lo que llega desde el otro lado
   function recibir(msg) {
     ignorar = true;
     if (Math.abs(video.currentTime - msg.tiempo) > 0.5) video.currentTime = msg.tiempo;
@@ -59,28 +52,31 @@
     setTimeout(() => ignorar = false, 400);
   }
 
-  // Lo que haces tú
   video.addEventListener('play',   () => { if (!ignorar) enviar({ tipo:'play',  tiempo: video.currentTime }); });
   video.addEventListener('pause',  () => { if (!ignorar) enviar({ tipo:'pause', tiempo: video.currentTime }); });
   video.addEventListener('seeked', () => { if (!ignorar) enviar({ tipo:'seek',  tiempo: video.currentTime }); });
 
-  // Crear sala
-  document.getElementById('crear').onclick = () => {
-    const codigo = Math.random().toString(36).slice(2, 8);
-    peer = new Peer(PREFIJO + codigo);
-    peer.on('open', () => estado.textContent = 'Tu código de sala: ' + codigo + ' (pásaselo a tu novia)');
-    peer.on('connection', configurarConexion);
-  };
-
-  // Unirse a una sala
-  document.getElementById('unirme').onclick = () => {
-    const codigo = document.getElementById('codigo').value.trim();
+  // Conexión automática: el primero espera, el segundo se une
+  function unirseComoInvitado() {
     peer = new Peer();
-    peer.on('open', () => {
-      estado.textContent = 'Conectando...';
-      configurarConexion(peer.connect(PREFIJO + codigo));
+    peer.on('open', () => configurarConexion(peer.connect(SALA)));
+    peer.on('error', err => estado.textContent = 'Error: ' + err.type + ' (recarga la página)');
+  }
+
+  function iniciar() {
+    peer = new Peer(SALA);
+    peer.on('open', () => estado.textContent = 'Esperando a que entre la otra persona...');
+    peer.on('connection', configurarConexion);
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id') {
+        unirseComoInvitado();
+      } else {
+        estado.textContent = 'Error: ' + err.type + ' (recarga la página)';
+      }
     });
-  };
+  }
+
+  iniciar();
 </script>
 </body>
 </html>
